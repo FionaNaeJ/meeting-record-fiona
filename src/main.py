@@ -9,6 +9,7 @@ import lark_oapi as lark
 from lark_oapi.api.im.v1 import P2ImMessageReceiveV1
 
 from src.config import Config
+from src.version import __version__
 from src.models.database import Database
 from src.services.lark_client import LarkClient
 from src.services.document_service import DocumentService
@@ -199,7 +200,7 @@ def start_lark_ws():
 
 def main():
     """主函数"""
-    print("Starting Weekly Report Bot...")
+    print(f"Starting Weekly Report Bot v{__version__}...")
 
     # 启动定时任务
     scheduler.start()
