@@ -1,7 +1,7 @@
 # src/services/document_service.py
 from __future__ import annotations
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 from src.services.lark_client import LarkClient
 from src.config import Config
 
@@ -24,13 +24,15 @@ class DocumentService:
     def copy_and_create_report(
         self,
         source_doc_token: str,
-        target_date: date
+        target_date: date,
+        todos: Optional[List[str]] = None
     ) -> Optional[dict]:
         """复制源文档创建新周报
 
         Args:
             source_doc_token: 源文档 token（最后一份周报或模板）
             target_date: 目标日期（下周三）
+            todos: 新的待办事项列表
 
         Returns:
             成功返回 {"doc_token": str, "doc_url": str}，失败返回 None
@@ -49,8 +51,12 @@ class DocumentService:
 
         print(f"[DocumentService] Created new report: {doc_url}")
 
-        # 清空旧的 todo 内容
-        self.lark.clear_document_todo_section(doc_token)
+        # 删除已完成的 todo（保留未完成的）
+        self.lark.delete_completed_todos(doc_token)
+
+        # 添加新的 todo 项
+        if todos:
+            self.lark.add_todos_to_document(doc_token, todos)
 
         # 授予文档管理者权限
         self.lark.grant_document_permission(

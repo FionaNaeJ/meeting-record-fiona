@@ -72,7 +72,10 @@ class ReportService:
             print("[ReportService] No source document found")
             return None
 
-        result = self.doc_service.copy_and_create_report(source_token, target_date)
+        # 获取待办事项
+        todos = self.todo_service.get_todo_texts()
+
+        result = self.doc_service.copy_and_create_report(source_token, target_date, todos=todos)
         if not result:
             print("[ReportService] Failed to create report")
             return None
@@ -84,7 +87,6 @@ class ReportService:
         # 写入多维表格
         if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
             title = self.doc_service.generate_new_title(target_date)
-            todos = self.todo_service.get_todo_texts()
             todo_content = "\n".join(todos) if todos else ""
 
             self.lark.add_report_to_bitable(
