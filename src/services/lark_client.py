@@ -281,7 +281,7 @@ class LarkClient:
             "Content-Type": "application/json"
         }
 
-        # 1. 获取文档所有块，找到 "Weekly Todo" 标题的 block_id
+        # 1. 获取文档所有块
         url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_token}/blocks"
         with httpx.Client(timeout=30.0) as client:
             resp = client.get(url, headers=headers, params={"page_size": 500})
@@ -296,33 +296,34 @@ class LarkClient:
 
             blocks = data.get("data", {}).get("items", [])
 
-        # 2. 找到 "Weekly Todo" 标题块
-        weekly_todo_block_id = None
-        for block in blocks:
-            block_id = block.get("block_id")
+        # 2. 找到 "Weekly Todo" 标题块及其在文档中的位置
+        weekly_todo_index = -1
+        for i, block in enumerate(blocks):
             block_type = block.get("block_type")
 
-            # 获取块的文本内容（检查多种标题类型）
+            # 获取块的文本内容（block_type: 2=text, 3=heading1, 4=heading2, 5=heading3）
             text_content = ""
-            for heading_type in ["heading1", "heading2", "heading3", "text"]:
-                if block_type in [2, 3, 4, 5]:  # text, heading1, heading2, heading3
-                    heading_data = block.get(heading_type, {})
-                    if heading_data:
-                        for elem in heading_data.get("elements", []):
-                            if elem.get("text_run"):
-                                text_content += elem["text_run"].get("content", "")
+            # 根据 block_type 确定对应的数据键
+            type_to_key = {2: "text", 3: "heading1", 4: "heading2", 5: "heading3"}
+            if block_type in type_to_key:
+                key = type_to_key[block_type]
+                block_data = block.get(key, {})
+                for elem in block_data.get("elements", []):
+                    if elem.get("text_run"):
+                        text_content += elem["text_run"].get("content", "")
 
             if "Weekly Todo" in text_content:
-                weekly_todo_block_id = block_id
-                print(f"[LarkClient] Found 'Weekly Todo' heading at block {block_id}")
+                weekly_todo_index = i
+                print(f"[LarkClient] Found 'Weekly Todo' heading at index {i}")
                 break
 
-        if not weekly_todo_block_id:
+        if weekly_todo_index == -1:
             print("[LarkClient] 'Weekly Todo' heading not found in document")
             return False
 
-        # 3. 在 Weekly Todo 标题后添加新的 todo 块
-        add_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_token}/blocks/{weekly_todo_block_id}/children"
+        # 3. 使用文档 token 作为父块 ID，在 Weekly Todo 后添加 todo 块
+        # 文档本身就是根块，直接使用 doc_token 作为父块 ID
+        add_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_token}/blocks/{doc_token}/children"
         added_count = 0
 
         with httpx.Client(timeout=30.0) as client:
@@ -355,7 +356,8 @@ class LarkClient:
 
                 body = {
                     "children": [todo_block],
-                    "index": i  # 按顺序插入
+                    # 插入位置：Weekly Todo 标题后面（index 从 0 开始，+1 跳过标题，+i 按顺序插入）
+                    "index": weekly_todo_index + 1 + i
                 }
 
                 resp = client.post(add_url, headers=headers, json=body)
@@ -363,7 +365,7 @@ class LarkClient:
                     added_count += 1
                     print(f"[LarkClient] Added todo: {todo_text[:50]}...")
                 else:
-                    print(f"[LarkClient] Failed to add todo: {resp.text}")
+                    print(f"[LarkClient] Failed to add todo '{todo_text[:30]}...': {resp.text[:200]}")
 
         print(f"[LarkClient] Successfully added {added_count}/{len(todos)} todos")
         return added_count > 0
