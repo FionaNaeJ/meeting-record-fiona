@@ -123,9 +123,6 @@ class ReportService:
             print(f"[ReportService] No report found for {date_str}, not sending card")
             return False
 
-        # 获取待办事项
-        todos = self.todo_service.get_todo_texts()
-
         # 生成标题
         title = self.doc_service.generate_new_title(target_date)
 
@@ -133,8 +130,7 @@ class ReportService:
         success = self.lark.send_report_card(
             chat_id=Config.TARGET_CHAT_ID,
             title=title,
-            doc_url=report.doc_url,
-            todos=todos
+            doc_url=report.doc_url
         )
 
         if success:

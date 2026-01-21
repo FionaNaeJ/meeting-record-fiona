@@ -158,10 +158,8 @@ class LarkClient:
         print(f"Permission grant failed: {response.msg}")
         return False
 
-    def send_report_card(self, chat_id: str, title: str, doc_url: str, todos: List[str]) -> bool:
+    def send_report_card(self, chat_id: str, title: str, doc_url: str) -> bool:
         """发送周报卡片消息"""
-        todo_text = "\\n".join([f"• {t}" for t in todos]) if todos else "暂无新增待办"
-
         card_content = {
             "config": {"wide_screen_mode": True},
             "header": {
@@ -171,7 +169,7 @@ class LarkClient:
             "elements": [
                 {
                     "tag": "div",
-                    "text": {"tag": "lark_md", "content": f"**本周待办:**\\n{todo_text}"}
+                    "text": {"tag": "lark_md", "content": "📝 请大家抓紧完成本周周报！"}
                 },
                 {
                     "tag": "action",

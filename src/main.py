@@ -165,6 +165,14 @@ def trigger_report():
     return jsonify({"success": False})
 
 
+@app.route("/api/send-card", methods=["POST"])
+def send_card():
+    """手动发送周报卡片到群聊（用于测试）"""
+    target_date = LarkClient.get_next_wednesday()
+    success = report_service.send_report_card(target_date)
+    return jsonify({"success": success, "target_date": target_date.strftime("%Y-%m-%d")})
+
+
 @app.route("/api/status", methods=["GET"])
 def get_status():
     """获取当前状态"""
