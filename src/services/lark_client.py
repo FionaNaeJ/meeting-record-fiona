@@ -263,7 +263,7 @@ class LarkClient:
             print(f"[LarkClient] Deleting {len(blocks_to_delete)} blocks from todo section")
             delete_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_token}/blocks/batch_delete"
             with httpx.Client(timeout=30.0) as client:
-                resp = client.delete(delete_url, headers=headers, json={"block_ids": blocks_to_delete})
+                resp = client.request("DELETE", delete_url, headers=headers, json={"block_ids": blocks_to_delete})
                 if resp.status_code == 200 and resp.json().get("code") == 0:
                     print(f"[LarkClient] Successfully cleared todo section")
                     return True
