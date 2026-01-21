@@ -157,9 +157,12 @@ lark_event_handler = lark.EventDispatcherHandler.builder(
 
 @app.route("/api/trigger", methods=["POST"])
 def trigger_report():
-    """手动触发周报发送（用于测试）"""
-    success = report_service.generate_and_send_report()
-    return jsonify({"success": success})
+    """手动触发周报创建（用于测试）"""
+    target_date = LarkClient.get_next_wednesday()
+    result = report_service.get_or_create_weekly_report(target_date)
+    if result:
+        return jsonify({"success": True, "doc_url": result["doc_url"]})
+    return jsonify({"success": False})
 
 
 @app.route("/api/status", methods=["GET"])
