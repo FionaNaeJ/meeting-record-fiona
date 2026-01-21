@@ -34,53 +34,6 @@ class LarkClient:
             days_until_wednesday = 7
         return from_date + timedelta(days=days_until_wednesday)
 
-    def get_wiki_node(self, token: str) -> Optional[dict]:
-        """获取 Wiki 节点信息"""
-        request = GetNodeSpaceRequest.builder() \
-            .token(token) \
-            .build()
-        response = self.client.wiki.v2.space.get_node(request)
-        if response.success():
-            return {
-                "node_token": response.data.node.node_token,
-                "obj_token": response.data.node.obj_token,
-                "obj_type": response.data.node.obj_type,
-                "title": response.data.node.title,
-                "space_id": response.data.node.space_id,
-                "parent_node_token": response.data.node.parent_node_token,
-            }
-        return None
-
-    def get_document_content(self, doc_id: str) -> Optional[str]:
-        """获取文档纯文本内容"""
-        request = RawContentDocumentRequest.builder() \
-            .document_id(doc_id) \
-            .build()
-        response = self.client.docx.v1.document.raw_content(request)
-        if response.success():
-            return response.data.content
-        return None
-
-    def copy_wiki_node(self, space_id: str, node_token: str, new_title: str) -> Optional[str]:
-        """复制 Wiki 节点，返回新节点的 token"""
-        request = CopySpaceNodeRequest.builder() \
-            .space_id(space_id) \
-            .node_token(node_token) \
-            .request_body(CopySpaceNodeRequestBody.builder()
-                .target_space_id(space_id)
-                .title(new_title)
-                .build()) \
-            .build()
-        response = self.client.wiki.v2.space_node.copy(request)
-        if response.success():
-            return response.data.node.node_token
-        print(f"Copy failed: {response.msg}")
-        return None
-
-    def update_document_title(self, doc_id: str, new_title: str) -> bool:
-        """更新文档标题"""
-        return True  # 复制时已经设置了标题
-
     def send_message_to_chat(self, chat_id: str, content: str, msg_type: str = "text") -> bool:
         """发送消息到群聊"""
         if msg_type == "text":
@@ -99,33 +52,97 @@ class LarkClient:
         response = self.client.im.v1.message.create(request)
         return response.success()
 
-    def add_report_to_bitable(self, app_token: str, table_id: str, report_date: str, title: str, doc_url: str, status: str = "已发送") -> bool:
+    def add_report_to_bitable(self, app_token: str, table_id: str, report_date: str, title: str, doc_url: str, todo_content: str = "", status: str = "已创建") -> bool:
         """将周报记录添加到多维表格"""
+        fields = {
+            "周报日期": report_date,
+            "标题": title,
+            "文档链接": {"link": doc_url, "text": title},
+            "状态": status
+        }
+        if todo_content:
+            fields["Todo内容"] = todo_content
+
         request = CreateAppTableRecordRequest.builder() \
             .app_token(app_token) \
             .table_id(table_id) \
             .request_body(AppTableRecord.builder()
-                .fields({
-                    "周报日期": report_date,
-                    "标题": title,
-                    "文档链接": {"link": doc_url, "text": title},
-                    "状态": status
-                })
+                .fields(fields)
                 .build()) \
             .build()
         response = self.client.bitable.v1.app_table_record.create(request)
         if response.success():
-            print(f"Report added to bitable: {title}")
+            print(f"[LarkClient] Report added to bitable: {title}")
             return True
-        print(f"Failed to add report to bitable: {response.msg}")
+        print(f"[LarkClient] Failed to add report to bitable: {response.msg}")
         return False
+
+    def copy_document(self, source_doc_token: str, new_title: str, folder_token: str = "") -> Optional[dict]:
+        """复制云空间文档，返回 {doc_token, doc_url}
+
+        Args:
+            source_doc_token: 源文档的 token
+            new_title: 新文档标题
+            folder_token: 目标文件夹 token，空表示根目录
+        """
+        import httpx
+
+        token = self._get_tenant_access_token()
+        if not token:
+            print("[LarkClient] Failed to get tenant access token")
+            return None
+
+        url = f"https://open.feishu.cn/open-apis/drive/v1/files/{source_doc_token}/copy"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        body = {
+            "name": new_title,
+            "type": "docx",
+            "folder_token": folder_token
+        }
+
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.post(url, headers=headers, json=body)
+            print(f"[LarkClient] Copy document response: {resp.status_code} {resp.text[:500]}")
+
+            if resp.status_code != 200:
+                print(f"[LarkClient] Copy document failed: {resp.text}")
+                return None
+
+            data = resp.json()
+            if data.get("code") != 0:
+                print(f"[LarkClient] Copy document error: {data.get('msg')}")
+                return None
+
+            new_token = data["data"]["file"]["token"]
+            doc_url = f"https://bytedance.larkoffice.com/docx/{new_token}"
+
+            return {"doc_token": new_token, "doc_url": doc_url}
+
+    def _get_tenant_access_token(self) -> Optional[str]:
+        """获取 tenant access token"""
+        import httpx
+        url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+        body = {
+            "app_id": Config.LARK_APP_ID,
+            "app_secret": Config.LARK_APP_SECRET
+        }
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(url, json=body)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 0:
+                    return data.get("tenant_access_token")
+        return None
 
     def grant_document_permission(self, doc_token: str, doc_type: str, member_id: str, member_type: str = "openid", perm: str = "full_access") -> bool:
         """给文档添加协作者权限"""
         request = CreatePermissionMemberRequest.builder() \
             .token(doc_token) \
             .type(doc_type) \
-            .request_body(PermissionMember.builder()
+            .request_body(Member.builder()
                 .member_type(member_type)
                 .member_id(member_id)
                 .perm(perm)

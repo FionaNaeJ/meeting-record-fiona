@@ -1,66 +1,65 @@
 # src/services/document_service.py
-import re
+from __future__ import annotations
 from datetime import date
 from typing import Optional
 from src.services.lark_client import LarkClient
 from src.config import Config
+
 
 class DocumentService:
     def __init__(self, lark_client: LarkClient):
         self.lark = lark_client
 
     @staticmethod
-    def generate_new_title(old_title: str, new_date: date) -> str:
-        """根据旧标题生成新标题，替换日期部分"""
-        pattern = r'\d{4}\.\d{1,2}\.\d{1,2}'
-        new_date_str = LarkClient.format_date_for_title(new_date)
-        new_title = re.sub(pattern, new_date_str, old_title.strip())
-        return new_title
+    def format_date_for_title(d: date) -> str:
+        """格式化日期为标题格式: 2026.1.29"""
+        return f"{d.year}.{d.month}.{d.day}"
 
     @staticmethod
-    def generate_todo_section(todos: list[str]) -> str:
-        """生成新的 Todo 部分内容"""
-        if not todos:
-            return "Weekly Todo：\n（暂无待办事项）\n"
-        todo_lines = "\n".join(todos)
-        return f"Weekly Todo：\n{todo_lines}\n"
+    def generate_new_title(target_date: date) -> str:
+        """生成新周报标题"""
+        date_str = DocumentService.format_date_for_title(target_date)
+        return f"火山引擎PMM&开发者周报{date_str}"
 
-    def copy_and_update_report(
+    def copy_and_create_report(
         self,
-        source_wiki_token: str,
-        new_date: date,
-        new_todos: list[str]
-    ) -> Optional[str]:
-        """复制上周周报并更新为本周版本，返回新文档的 wiki token"""
-        # 1. 获取源文档信息
-        node_info = self.lark.get_wiki_node(source_wiki_token)
-        if not node_info:
+        source_doc_token: str,
+        target_date: date
+    ) -> Optional[dict]:
+        """复制源文档创建新周报
+
+        Args:
+            source_doc_token: 源文档 token（最后一份周报或模板）
+            target_date: 目标日期（下周三）
+
+        Returns:
+            成功返回 {"doc_token": str, "doc_url": str}，失败返回 None
+        """
+        # 生成新标题
+        new_title = self.generate_new_title(target_date)
+
+        # 复制文档
+        result = self.lark.copy_document(source_doc_token, new_title)
+        if not result:
+            print(f"[DocumentService] Failed to copy document from {source_doc_token}")
             return None
 
-        # 2. 生成新标题
-        new_title = self.generate_new_title(node_info["title"], new_date)
+        doc_token = result["doc_token"]
+        doc_url = result["doc_url"]
 
-        # 3. 复制文档
-        new_token = self.lark.copy_wiki_node(
-            space_id=node_info["space_id"],
-            node_token=source_wiki_token,
-            new_title=new_title
-        )
+        print(f"[DocumentService] Created new report: {doc_url}")
 
-        if not new_token:
-            return None
-
-        # 4. 授予文档管理者权限
+        # 授予文档管理者权限
         self.lark.grant_document_permission(
-            doc_token=new_token,
-            doc_type="wiki",
+            doc_token=doc_token,
+            doc_type="docx",
             member_id=Config.DOC_PERMISSION_OPEN_ID,
             member_type="openid",
             perm=Config.DOC_PERMISSION_LEVEL
         )
 
-        return new_token
+        return {"doc_token": doc_token, "doc_url": doc_url}
 
-    def get_document_url(self, wiki_token: str, space_id: str = None) -> str:
+    def get_document_url(self, doc_token: str) -> str:
         """生成文档的访问 URL"""
-        return f"https://bytedance.larkoffice.com/wiki/{wiki_token}"
+        return f"https://bytedance.larkoffice.com/docx/{doc_token}"

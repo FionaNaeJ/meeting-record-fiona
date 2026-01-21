@@ -35,16 +35,27 @@ class ReportScheduler:
         self.scheduler.shutdown()
 
     def _send_weekly_report(self):
-        """执行周报发送任务"""
-        print("Running scheduled weekly report...")
+        """执行周报发送任务（周二 11:00 执行）"""
+        from datetime import date, timedelta
+
+        print("[Scheduler] Running scheduled weekly report...")
+
         try:
-            success = self.report_service.generate_and_send_report()
+            # 计算明天（周三）的日期
+            tomorrow = date.today() + timedelta(days=1)
+
+            print(f"[Scheduler] Tomorrow is {tomorrow}, sending report card...")
+
+            success = self.report_service.send_report_card(tomorrow)
             if success:
-                print("Weekly report sent successfully")
+                print("[Scheduler] Weekly report card sent successfully")
             else:
-                print("Weekly report was skipped or failed")
+                print("[Scheduler] Weekly report card was skipped or failed")
+
         except Exception as e:
-            print(f"Error sending weekly report: {e}")
+            print(f"[Scheduler] Error sending weekly report: {e}")
+            import traceback
+            traceback.print_exc()
 
     def trigger_now(self):
         """手动触发一次周报发送（用于测试）"""

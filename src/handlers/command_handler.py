@@ -35,16 +35,18 @@ class CommandHandler:
         if message in ["帮助", "help", "?"]:
             return ("help", None)
 
-        # Todo
+        # Todo（模糊匹配：只要包含 todo 或 待办 就识别）
         todo_patterns = [
-            r'^[Tt][Oo][Dd][Oo][:\s：]\s*(.+)$',
-            r'^[Tt][Oo][Dd][Oo]\s+(.+)$',
-            r'^待办[:\s：]\s*(.+)$',
-            r'^待办\s+(.+)$',
+            r'[Tt][Oo][Dd][Oo][:\s：]*(.+)$',  # todo后面可以没有分隔符
+            r'待办[:\s：]*(.+)$',
         ]
         for pattern in todo_patterns:
-            match = re.match(pattern, message)
+            match = re.search(pattern, message)
             if match:
-                return ("todo", match.group(1).strip())
+                content = match.group(1).strip()
+                # 去掉开头的分隔符
+                content = re.sub(r'^[:\s：，,]+', '', content)
+                if content:
+                    return ("todo", content)
 
         return (None, None)

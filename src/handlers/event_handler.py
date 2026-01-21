@@ -1,9 +1,11 @@
 # src/handlers/event_handler.py
-from datetime import date
-from src.handlers.command_handler import CommandHandler
+from __future__ import annotations
+import threading
+from src.services.intent_service import IntentService
 from src.services.report_service import ReportService
 from src.services.todo_service import TodoService
 from src.services.lark_client import LarkClient
+
 
 class EventHandler:
     def __init__(
@@ -15,63 +17,77 @@ class EventHandler:
         self.report_service = report_service
         self.todo_service = todo_service
         self.lark = lark_client
+        self.intent_service = IntentService()
 
     def handle_message(self, chat_id: str, user_id: str, message: str, mentions: list[dict] = None) -> str:
         """处理群消息，返回回复内容"""
-        command, arg = CommandHandler.parse_command(message)
+        # 使用 LLM 识别意图
+        intent = self.intent_service.recognize(message)
+        print(f"[EventHandler] Intent: {intent.type}")
 
-        if command == "skip":
-            return self._handle_skip(arg)
-        elif command == "cancel_skip":
-            return self._handle_cancel_skip(arg)
-        elif command == "status":
-            return self._handle_status()
-        elif command == "todo":
-            return self._handle_todo(arg, user_id, mentions)
-        elif command == "help":
-            return self._handle_help()
+        if intent.type == "todo":
+            return self._handle_todo(chat_id, message, user_id, mentions)
+        elif intent.type == "send_report":
+            return self._handle_send_report()
+        elif intent.type == "skip":
+            return self._handle_skip()
+        elif intent.type == "cancel_skip":
+            return self._handle_cancel_skip()
         else:
-            return ""  # 不回复无关消息
+            # unknown 意图不回复
+            return ""
 
-    def _handle_skip(self, date_str: str = None) -> str:
-        if date_str:
-            from datetime import datetime
-            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        else:
+    def _handle_todo(self, chat_id: str, content: str, user_id: str, mentions: list[dict] = None) -> str:
+        """处理 todo 意图：保存 todo 并异步同步到周报"""
+        if not content:
+            return ""
+
+        # 1. 保存 todo
+        self.todo_service.add_todo(content, user_id, mentions)
+
+        # 2. 异步创建/更新周报（不发送第二条消息）
+        thread = threading.Thread(
+            target=self._async_update_report,
+            args=(chat_id,),
+            daemon=True
+        )
+        thread.start()
+
+        # 3. 立即返回确认
+        return "已接收 todo，正在同步至下周周报..."
+
+    def _async_update_report(self, chat_id: str):
+        """异步更新周报（静默，不发送消息）"""
+        try:
             target_date = LarkClient.get_next_wednesday()
+            result = self.report_service.get_or_create_weekly_report(target_date)
 
+            if result:
+                print(f"[EventHandler] Report updated: {result['doc_url']}")
+            else:
+                print("[EventHandler] Report update failed")
+
+        except Exception as e:
+            print(f"[EventHandler] Error in async update: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _handle_send_report(self) -> str:
+        """处理发送周报意图"""
+        last_report = self.report_service.db.get_last_report()
+        if last_report and last_report.doc_url:
+            return f"周报链接：{last_report.doc_url}"
+        else:
+            return "暂无周报记录"
+
+    def _handle_skip(self) -> str:
+        """处理跳过周报意图"""
+        target_date = LarkClient.get_next_wednesday()
         self.report_service.skip_week(target_date)
         return f"已跳过 {target_date.strftime('%Y-%m-%d')} 的周报"
 
-    def _handle_cancel_skip(self, date_str: str = None) -> str:
-        if date_str:
-            from datetime import datetime
-            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        else:
-            target_date = LarkClient.get_next_wednesday()
-
+    def _handle_cancel_skip(self) -> str:
+        """处理取消跳过意图"""
+        target_date = LarkClient.get_next_wednesday()
         self.report_service.cancel_skip(target_date)
         return f"已恢复 {target_date.strftime('%Y-%m-%d')} 的周报"
-
-    def _handle_status(self) -> str:
-        next_wed = LarkClient.get_next_wednesday()
-        is_skipped = not self.report_service.should_send_report(next_wed)
-        todos = self.todo_service.get_pending_todos()
-
-        status = "已跳过" if is_skipped else "待发送"
-        todo_count = len(todos)
-
-        return f"下次周报: {next_wed.strftime('%Y-%m-%d')} ({status})\n待办事项: {todo_count} 项"
-
-    def _handle_todo(self, content: str, user_id: str, mentions: list[dict] = None) -> str:
-        self.todo_service.add_todo(content, user_id, mentions)
-        return "已接收 todo，将更新至下周周报中"
-
-    def _handle_help(self) -> str:
-        return """周报机器人使用帮助:
-• todo <内容> - 添加待办事项
-• 跳过本周 - 跳过本周周报
-• 跳过 2026-01-29 - 跳过指定日期周报
-• 取消跳过 - 恢复本周周报
-• 状态 - 查看当前状态
-• 帮助 - 显示此帮助"""

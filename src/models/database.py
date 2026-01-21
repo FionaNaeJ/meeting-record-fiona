@@ -1,4 +1,5 @@
 # src/models/database.py
+from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,8 +19,9 @@ class Todo:
 @dataclass
 class WeeklyReport:
     id: Optional[int]
-    week_date: str  # 格式: 2026-01-22
+    week_date: str  # 格式: 2026-01-22 (下周三的日期)
     doc_token: Optional[str]
+    doc_url: Optional[str]  # 文档 URL
     status: str  # pending, sent, skipped
     created_at: datetime
 
@@ -47,6 +49,7 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 week_date TEXT UNIQUE NOT NULL,
                 doc_token TEXT,
+                doc_url TEXT,
                 status TEXT DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -112,20 +115,34 @@ class Database:
         row = cursor.fetchone()
         return row is not None and row[0] == "skipped"
 
-    def mark_report_sent(self, week_date: str, doc_token: str):
+    def mark_report_sent(self, week_date: str, doc_token: str, doc_url: str):
+        """标记周报已发送/已创建"""
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO weekly_reports (week_date, doc_token, status) VALUES (?, ?, 'sent')",
-            (week_date, doc_token)
+            "INSERT OR REPLACE INTO weekly_reports (week_date, doc_token, doc_url, status) VALUES (?, ?, ?, 'sent')",
+            (week_date, doc_token, doc_url)
         )
         self.conn.commit()
 
-    def get_last_report(self) -> Optional[WeeklyReport]:
+    def get_report_by_week_date(self, week_date: str) -> Optional[WeeklyReport]:
+        """获取指定周的周报"""
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT id, week_date, doc_token, status, created_at FROM weekly_reports WHERE status = 'sent' ORDER BY week_date DESC LIMIT 1"
+            "SELECT id, week_date, doc_token, doc_url, status, created_at FROM weekly_reports WHERE week_date = ?",
+            (week_date,)
         )
         row = cursor.fetchone()
         if row:
-            return WeeklyReport(id=row[0], week_date=row[1], doc_token=row[2], status=row[3], created_at=row[4])
+            return WeeklyReport(id=row[0], week_date=row[1], doc_token=row[2], doc_url=row[3], status=row[4], created_at=row[5])
+        return None
+
+    def get_last_report(self) -> Optional[WeeklyReport]:
+        """获取最后一份周报"""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, week_date, doc_token, doc_url, status, created_at FROM weekly_reports WHERE status = 'sent' ORDER BY week_date DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if row:
+            return WeeklyReport(id=row[0], week_date=row[1], doc_token=row[2], doc_url=row[3], status=row[4], created_at=row[5])
         return None
