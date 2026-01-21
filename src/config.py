@@ -25,7 +25,7 @@ class Config:
 
     # 周报汇总表（飞书多维表格）
     REPORT_BITABLE_APP_TOKEN = os.getenv("REPORT_BITABLE_APP_TOKEN", "ATn8bLW6Lashf3susaScmHXhnzc")
-    REPORT_BITABLE_TABLE_ID = os.getenv("REPORT_BITABLE_TABLE_ID", "tbldLXm1b1hBt7Tq")
+    REPORT_BITABLE_TABLE_ID = os.getenv("REPORT_BITABLE_TABLE_ID", "tblbzqmxCApNrFFS")
 
     # 文档权限配置（创建文档后自动授予管理者权限）
     DOC_PERMISSION_EMAIL = os.getenv("DOC_PERMISSION_EMAIL", "fuqiannan.fionafu@bytedance.com")

@@ -24,14 +24,12 @@ class LarkClient:
 
     @staticmethod
     def get_next_wednesday(from_date: date = None) -> date:
-        """获取下一个周三的日期"""
+        """获取下一个周三的日期（如果今天是周三，返回下周三）"""
         if from_date is None:
             from_date = date.today()
         days_until_wednesday = (2 - from_date.weekday()) % 7  # 2 = Wednesday
-        if days_until_wednesday == 0 and from_date.weekday() == 2:
-            return from_date  # 今天就是周三
         if days_until_wednesday == 0:
-            days_until_wednesday = 7
+            days_until_wednesday = 7  # 如果今天是周三，返回下周三
         return from_date + timedelta(days=days_until_wednesday)
 
     def send_message_to_chat(self, chat_id: str, content: str, msg_type: str = "text") -> bool:
@@ -54,8 +52,13 @@ class LarkClient:
 
     def add_report_to_bitable(self, app_token: str, table_id: str, report_date: str, title: str, doc_url: str, todo_content: str = "", status: str = "已创建") -> bool:
         """将周报记录添加到多维表格"""
+        from datetime import datetime
+        # 日期字段需要传时间戳（毫秒）
+        date_obj = datetime.strptime(report_date, "%Y-%m-%d")
+        timestamp_ms = int(date_obj.timestamp() * 1000)
+
         fields = {
-            "周报日期": report_date,
+            "周报日期": timestamp_ms,
             "标题": title,
             "文档链接": {"link": doc_url, "text": title},
             "状态": status
@@ -185,3 +188,87 @@ class LarkClient:
         }
 
         return self.send_message_to_chat(chat_id, json.dumps(card_content), "interactive")
+
+    def clear_document_todo_section(self, doc_token: str) -> bool:
+        """清空文档中的 Weekly Todo 部分（保留标题，删除内容直到 Part.1）"""
+        import httpx
+
+        token = self._get_tenant_access_token()
+        if not token:
+            return False
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        # 1. 获取文档所有块
+        url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_token}/blocks"
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get(url, headers=headers, params={"page_size": 500})
+            if resp.status_code != 200:
+                print(f"[LarkClient] Failed to get document blocks: {resp.text}")
+                return False
+
+            data = resp.json()
+            if data.get("code") != 0:
+                print(f"[LarkClient] Get blocks error: {data.get('msg')}")
+                return False
+
+            blocks = data.get("data", {}).get("items", [])
+
+        # 2. 找到 "Weekly Todo" 和 "Part.1" 之间的块
+        blocks_to_delete = []
+        in_todo_section = False
+        todo_section_ended = False
+
+        for block in blocks:
+            block_id = block.get("block_id")
+            block_type = block.get("block_type")
+
+            # 获取块的文本内容
+            text_content = ""
+            if block_type == 2:  # text block
+                text_run = block.get("text", {}).get("elements", [])
+                for elem in text_run:
+                    if elem.get("text_run"):
+                        text_content += elem["text_run"].get("content", "")
+            elif block_type == 3:  # heading1
+                text_run = block.get("heading1", {}).get("elements", [])
+                for elem in text_run:
+                    if elem.get("text_run"):
+                        text_content += elem["text_run"].get("content", "")
+            elif block_type == 4:  # heading2
+                text_run = block.get("heading2", {}).get("elements", [])
+                for elem in text_run:
+                    if elem.get("text_run"):
+                        text_content += elem["text_run"].get("content", "")
+
+            # 检查是否进入 todo section
+            if "Weekly Todo" in text_content:
+                in_todo_section = True
+                continue  # 不删除 "Weekly Todo" 标题本身
+
+            # 检查是否离开 todo section
+            if in_todo_section and "Part.1" in text_content:
+                todo_section_ended = True
+                break
+
+            # 如果在 todo section 中，标记要删除
+            if in_todo_section and not todo_section_ended:
+                blocks_to_delete.append(block_id)
+
+        # 3. 删除这些块
+        if blocks_to_delete:
+            print(f"[LarkClient] Deleting {len(blocks_to_delete)} blocks from todo section")
+            delete_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_token}/blocks/batch_delete"
+            with httpx.Client(timeout=30.0) as client:
+                resp = client.delete(delete_url, headers=headers, json={"block_ids": blocks_to_delete})
+                if resp.status_code == 200 and resp.json().get("code") == 0:
+                    print(f"[LarkClient] Successfully cleared todo section")
+                    return True
+                else:
+                    print(f"[LarkClient] Failed to delete blocks: {resp.text}")
+                    return False
+
+        return True

@@ -49,6 +49,9 @@ class DocumentService:
 
         print(f"[DocumentService] Created new report: {doc_url}")
 
+        # 清空旧的 todo 内容
+        self.lark.clear_document_todo_section(doc_token)
+
         # 授予文档管理者权限
         self.lark.grant_document_permission(
             doc_token=doc_token,
