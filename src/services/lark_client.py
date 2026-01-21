@@ -217,17 +217,18 @@ class LarkClient:
 
             blocks = data.get("data", {}).get("items", [])
 
-        # 2. 找到已完成的 todo 块（block_type=20 且 done=true）
+        # 2. 找到已完成的 todo 块（block_type=17 且 todo.style.done=true）
         blocks_to_delete = []
         for block in blocks:
             block_id = block.get("block_id")
             block_type = block.get("block_type")
 
-            # block_type=20 是 todo 块
-            if block_type == 20:
+            # block_type=17 是 todo/bullet 块，检查 todo.style.done
+            if block_type == 17:
                 todo_data = block.get("todo", {})
+                style = todo_data.get("style", {})
                 # 检查 done 属性是否为 true
-                if todo_data.get("done", False):
+                if style.get("done", False):
                     blocks_to_delete.append(block_id)
                     # 获取文本内容用于日志
                     text_content = ""
@@ -326,17 +327,26 @@ class LarkClient:
 
         with httpx.Client(timeout=30.0) as client:
             for i, todo_text in enumerate(todos):
-                # 构建 todo 块
+                # 构建 todo 块 (block_type=17 是飞书文档中的 todo 类型)
                 todo_block = {
-                    "block_type": 20,  # todo block
+                    "block_type": 17,
                     "todo": {
                         "style": {
-                            "done": False
+                            "align": 1,
+                            "done": False,
+                            "folded": False
                         },
                         "elements": [
                             {
                                 "text_run": {
-                                    "content": todo_text
+                                    "content": todo_text,
+                                    "text_element_style": {
+                                        "bold": False,
+                                        "inline_code": False,
+                                        "italic": False,
+                                        "strikethrough": False,
+                                        "underline": False
+                                    }
                                 }
                             }
                         ]
