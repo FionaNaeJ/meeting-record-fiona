@@ -67,10 +67,6 @@ class ReportService:
         existing = self.db.get_report_by_week_date(date_str)
         if existing and existing.doc_token and existing.doc_url:
             print(f"[ReportService] Found existing report for {date_str}: {existing.doc_url}")
-            # 更新已有周报的 todo：删除已完成的，添加新的
-            self.lark.delete_completed_todos(existing.doc_token)
-            if todos:
-                self.lark.add_todos_to_document(existing.doc_token, todos)
             return {"doc_token": existing.doc_token, "doc_url": existing.doc_url}
 
         # 创建新周报
@@ -79,7 +75,7 @@ class ReportService:
             print("[ReportService] No source document found")
             return None
 
-        result = self.doc_service.copy_and_create_report(source_token, target_date, todos=todos)
+        result = self.doc_service.copy_and_create_report(source_token, target_date)
         if not result:
             print("[ReportService] Failed to create report")
             return None
