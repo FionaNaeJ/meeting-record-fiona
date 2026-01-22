@@ -56,7 +56,9 @@ class EventHandler:
         thread.start()
 
         # 3. 立即返回确认
-        return "已接收 todo，正在同步至下周周报..."
+        from src.config import Config
+        bitable_url = f"https://bytedance.larkoffice.com/base/{Config.REPORT_BITABLE_APP_TOKEN}?table={Config.REPORT_BITABLE_TABLE_ID}"
+        return f"已创建下周周报，将于下周二进行周报撰写提醒。\n周报汇总表：{bitable_url}"
 
     def _async_update_report(self, chat_id: str):
         """异步更新周报（静默，不发送消息）"""
