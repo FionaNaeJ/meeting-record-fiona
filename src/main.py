@@ -30,7 +30,8 @@ event_handler = EventHandler(report_service, todo_service, lark_client)
 scheduler = ReportScheduler(report_service)
 
 # 消息去重缓存
-processed_messages = set()  # message_id 去重
+from collections import OrderedDict
+processed_messages = OrderedDict()  # message_id 去重，保持插入顺序
 processed_content_hashes = {}  # 内容哈希去重 {hash: timestamp}
 MAX_CACHE_SIZE = 1000
 CONTENT_DEDUP_SECONDS = 300  # 5 分钟内相同内容不重复处理
@@ -44,15 +45,16 @@ def extract_text_from_post(content: dict) -> str:
             if item.get("tag") == "text":
                 texts.append(item.get("text", ""))
             elif item.get("tag") == "at":
-                # 保留 @user_id 格式，后面会处理
-                texts.append(item.get("user_id", ""))
+                # 使用 @ 标记的 key（如 @_user_1），而不是 open_id
+                # 这样后续可以通过 mention.key 来移除
+                key = item.get("key", "")
+                if key:
+                    texts.append(key)
     return "".join(texts)
 
 
 def handle_im_message(data: P2ImMessageReceiveV1):
     """处理飞书消息事件（长连接模式）"""
-    global processed_messages
-
     try:
         event = data.event
         message = event.message
@@ -63,11 +65,11 @@ def handle_im_message(data: P2ImMessageReceiveV1):
         if dedup_key in processed_messages:
             print(f"[DEBUG] Duplicate message {dedup_key}, skipping")
             return
-        processed_messages.add(dedup_key)
+        processed_messages[dedup_key] = True
 
-        # 防止缓存过大
-        if len(processed_messages) > MAX_CACHE_SIZE:
-            processed_messages = set(list(processed_messages)[-500:])
+        # 防止缓存过大（OrderedDict 保持插入顺序，删除最早的）
+        while len(processed_messages) > MAX_CACHE_SIZE:
+            processed_messages.popitem(last=False)  # 删除最早插入的
 
         chat_id = message.chat_id
         message_type = message.message_type

@@ -94,11 +94,22 @@ class Database:
         self.conn.commit()
 
     def skip_week(self, week_date: str):
+        """跳过某周的周报（不覆盖已有的 doc_token/doc_url）"""
         cursor = self.conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO weekly_reports (week_date, status) VALUES (?, 'skipped')",
-            (week_date,)
-        )
+        # 先检查是否已存在记录
+        cursor.execute("SELECT id FROM weekly_reports WHERE week_date = ?", (week_date,))
+        existing = cursor.fetchone()
+        if existing:
+            # 只更新状态，保留 doc_token/doc_url
+            cursor.execute(
+                "UPDATE weekly_reports SET status = 'skipped' WHERE week_date = ?",
+                (week_date,)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO weekly_reports (week_date, status) VALUES (?, 'skipped')",
+                (week_date,)
+            )
         self.conn.commit()
 
     def cancel_skip(self, week_date: str):
@@ -115,12 +126,30 @@ class Database:
         row = cursor.fetchone()
         return row is not None and row[0] == "skipped"
 
-    def mark_report_sent(self, week_date: str, doc_token: str, doc_url: str):
-        """标记周报已发送/已创建"""
+    def mark_report_created(self, week_date: str, doc_token: str, doc_url: str):
+        """标记周报已创建"""
+        cursor = self.conn.cursor()
+        # 先检查是否已存在记录
+        cursor.execute("SELECT id FROM weekly_reports WHERE week_date = ?", (week_date,))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                "UPDATE weekly_reports SET doc_token = ?, doc_url = ?, status = 'created' WHERE week_date = ?",
+                (doc_token, doc_url, week_date)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO weekly_reports (week_date, doc_token, doc_url, status) VALUES (?, ?, ?, 'created')",
+                (week_date, doc_token, doc_url)
+            )
+        self.conn.commit()
+
+    def mark_report_sent(self, week_date: str):
+        """标记周报已发送（卡片已推送到群）"""
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO weekly_reports (week_date, doc_token, doc_url, status) VALUES (?, ?, ?, 'sent')",
-            (week_date, doc_token, doc_url)
+            "UPDATE weekly_reports SET status = 'sent' WHERE week_date = ?",
+            (week_date,)
         )
         self.conn.commit()
 
@@ -137,10 +166,10 @@ class Database:
         return None
 
     def get_last_report(self) -> Optional[WeeklyReport]:
-        """获取最后一份周报"""
+        """获取最后一份周报（已创建或已发送）"""
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT id, week_date, doc_token, doc_url, status, created_at FROM weekly_reports WHERE status = 'sent' ORDER BY week_date DESC LIMIT 1"
+            "SELECT id, week_date, doc_token, doc_url, status, created_at FROM weekly_reports WHERE status IN ('created', 'sent') ORDER BY week_date DESC LIMIT 1"
         )
         row = cursor.fetchone()
         if row:

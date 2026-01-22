@@ -44,13 +44,22 @@ class ReportScheduler:
             # 计算明天（周三）的日期
             tomorrow = date.today() + timedelta(days=1)
 
-            print(f"[Scheduler] Tomorrow is {tomorrow}, sending report card...")
+            print(f"[Scheduler] Tomorrow is {tomorrow}")
 
+            # 1. 先确保周报已创建
+            result = self.report_service.get_or_create_weekly_report(tomorrow)
+            if not result:
+                print("[Scheduler] Report creation skipped or failed")
+                return
+
+            print(f"[Scheduler] Report ready: {result['doc_url']}")
+
+            # 2. 发送卡片到群
             success = self.report_service.send_report_card(tomorrow)
             if success:
                 print("[Scheduler] Weekly report card sent successfully")
             else:
-                print("[Scheduler] Weekly report card was skipped or failed")
+                print("[Scheduler] Weekly report card send failed")
 
         except Exception as e:
             print(f"[Scheduler] Error sending weekly report: {e}")

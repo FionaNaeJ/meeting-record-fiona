@@ -16,7 +16,7 @@ class Intent:
 class IntentService:
     """使用豆包 LLM 识别用户意图"""
 
-    SYSTEM_PROMPT = """你是周报机器人的意图识别器。只返回意图类型，不要提取内容。
+    SYSTEM_PROMPT = """你是周报机器人的意图识别器。
 
 意图：
 - todo: 包含待办事项（有"todo"、"待办"、"本周"、带序号列表等）
@@ -25,13 +25,20 @@ class IntentService:
 - cancel_skip: 取消跳过
 - unknown: 无法识别
 
-只返回JSON：{"intent": "xxx"}
+返回JSON：
+- 非todo意图：{"intent": "xxx"}
+- todo意图：{"intent": "todo", "content": "提取的todo内容"}
+
+提取todo内容时：
+- 去掉"todo"、"待办"等前缀词
+- 去掉@人的标记
+- 保留实际的任务内容
 
 示例：
-"本周todo：开会" → {"intent": "todo"}
+"本周todo：1. 开会 2. 写文档" → {"intent": "todo", "content": "1. 开会 2. 写文档"}
+"todo 完成周报" → {"intent": "todo", "content": "完成周报"}
 "发一下周报" → {"intent": "send_report"}
 "这周跳过" → {"intent": "skip"}
-"还是发吧" → {"intent": "cancel_skip"}
 "天气真好" → {"intent": "unknown"}"""
 
     def __init__(self):
@@ -65,7 +72,7 @@ class IntentService:
                 {"role": "system", "content": self.SYSTEM_PROMPT},
                 {"role": "user", "content": message}
             ],
-            "max_tokens": 50,  # 只需返回意图，不需要太长
+            "max_tokens": 500,  # 需要返回意图和提取的内容
             "temperature": 0.1  # 低温度，更确定性的输出
         }
 

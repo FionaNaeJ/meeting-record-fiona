@@ -26,7 +26,9 @@ class EventHandler:
         print(f"[EventHandler] Intent: {intent.type}")
 
         if intent.type == "todo":
-            return self._handle_todo(chat_id, message, user_id, mentions)
+            # 优先使用 LLM 提取的内容，否则用原始消息
+            todo_content = intent.content if intent.content else message
+            return self._handle_todo(chat_id, todo_content, user_id, mentions)
         elif intent.type == "send_report":
             return self._handle_send_report()
         elif intent.type == "skip":

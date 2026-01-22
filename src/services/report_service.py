@@ -80,8 +80,8 @@ class ReportService:
             print("[ReportService] Failed to create report")
             return None
 
-        # 保存到数据库
-        self.db.mark_report_sent(date_str, result["doc_token"], result["doc_url"])
+        # 保存到数据库（标记为已创建）
+        self.db.mark_report_created(date_str, result["doc_token"], result["doc_url"])
         print(f"[ReportService] Created new report: {result['doc_url']}")
 
         # 写入多维表格
@@ -136,7 +136,10 @@ class ReportService:
         if success:
             print(f"[ReportService] Report card sent for {date_str}")
 
-            # 添加到周报汇总表
+            # 标记为已发送
+            self.db.mark_report_sent(date_str)
+
+            # 更新周报汇总表状态
             if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
                 self.lark.add_report_to_bitable(
                     app_token=Config.REPORT_BITABLE_APP_TOKEN,
