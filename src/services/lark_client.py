@@ -35,7 +35,7 @@ class LarkClient:
     def send_message_to_chat(self, chat_id: str, content: str, msg_type: str = "text") -> bool:
         """发送消息到群聊"""
         if msg_type == "text":
-            content_json = f'{{"text": "{content}"}}'
+            content_json = json.dumps({"text": content})
         else:
             content_json = content
 
