@@ -187,3 +187,32 @@ class LarkClient:
 
         return self.send_message_to_chat(chat_id, json.dumps(card_content), "interactive")
 
+    def send_todo_confirm_card(self, chat_id: str, bitable_url: str) -> bool:
+        """发送 todo 确认卡片"""
+        card_content = {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "title": {"tag": "plain_text", "content": "✅ Todo 已记录"},
+                "template": "green"
+            },
+            "elements": [
+                {
+                    "tag": "div",
+                    "text": {"tag": "lark_md", "content": "已创建下周周报，将于下周二进行周报撰写提醒。"}
+                },
+                {
+                    "tag": "action",
+                    "actions": [
+                        {
+                            "tag": "button",
+                            "text": {"tag": "plain_text", "content": "查看周报汇总"},
+                            "url": bitable_url,
+                            "type": "primary"
+                        }
+                    ]
+                }
+            ]
+        }
+
+        return self.send_message_to_chat(chat_id, json.dumps(card_content), "interactive")
+
