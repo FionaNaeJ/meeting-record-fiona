@@ -99,10 +99,17 @@ class EventHandler:
         return f"已恢复 {target_date.strftime('%Y-%m-%d')} 的周报"
 
     def _handle_status(self) -> str:
-        """处理状态查询：返回最新周报是哪周的"""
-        last_report = self.report_service.db.get_last_report()
-        if last_report and last_report.week_date:
-            return f"最新周报：{last_report.week_date}"
+        """处理状态查询：返回最新周报是哪周的（从飞书表格查询）"""
+        from src.config import Config
+
+        if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
+            latest = self.lark.get_latest_report_from_bitable(
+                Config.REPORT_BITABLE_APP_TOKEN,
+                Config.REPORT_BITABLE_TABLE_ID
+            )
+            if latest and latest.get("week_date"):
+                return f"最新周报：{latest['week_date']}"
+
         return "暂无周报记录"
 
     def _handle_help(self) -> str:

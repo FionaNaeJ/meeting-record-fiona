@@ -90,6 +90,45 @@ class LarkClient:
             print(f"[LarkClient] Found report in bitable: {report_date} -> {doc_url}")
             return {"doc_url": doc_url, "status": status}
 
+    def get_latest_report_from_bitable(self, app_token: str, table_id: str) -> Optional[dict]:
+        """从多维表格查询最新的周报记录（按周报日期倒序）
+
+        Returns:
+            找到返回 {"week_date": str, "doc_url": str, "status": str}，没找到返回 None
+        """
+        from datetime import datetime
+
+        # 按周报日期倒序查询，取第一条
+        request = SearchAppTableRecordRequest.builder() \
+            .app_token(app_token) \
+            .table_id(table_id) \
+            .request_body(SearchAppTableRecordRequestBody.builder()
+                .sort([Sort.builder()
+                    .field_name("周报日期")
+                    .desc(True)
+                    .build()])
+                .build()) \
+            .build()
+
+        response = self.client.bitable.v1.app_table_record.search(request)
+        if response.success() and response.data and response.data.items:
+            record = response.data.items[0]
+            fields = record.fields
+            # 周报日期是时间戳（毫秒）
+            timestamp_ms = fields.get("周报日期", 0)
+            if timestamp_ms:
+                week_date = datetime.fromtimestamp(timestamp_ms / 1000).strftime("%Y-%m-%d")
+            else:
+                week_date = ""
+            doc_link = fields.get("文档链接", {})
+            doc_url = doc_link.get("link", "") if isinstance(doc_link, dict) else ""
+            status = fields.get("状态", "")
+            print(f"[LarkClient] Latest report in bitable: {week_date} -> {doc_url}")
+            return {"week_date": week_date, "doc_url": doc_url, "status": status}
+
+        print("[LarkClient] No reports found in bitable")
+        return None
+
         print(f"[LarkClient] No report found in bitable for {report_date}")
         return None
 
