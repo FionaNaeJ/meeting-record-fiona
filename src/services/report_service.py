@@ -60,9 +60,6 @@ class ReportService:
             print(f"[ReportService] Week {date_str} is skipped")
             return None
 
-        # 获取待办事项
-        todos = self.todo_service.get_todo_texts()
-
         # 检查是否已有本周周报
         existing = self.db.get_report_by_week_date(date_str)
         if existing and existing.doc_token and existing.doc_url:
@@ -83,21 +80,6 @@ class ReportService:
         # 保存到数据库（标记为已创建）
         self.db.mark_report_created(date_str, result["doc_token"], result["doc_url"])
         print(f"[ReportService] Created new report: {result['doc_url']}")
-
-        # 写入多维表格
-        if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
-            title = self.doc_service.generate_new_title(target_date)
-            todo_content = "\n".join(todos) if todos else ""
-
-            self.lark.add_report_to_bitable(
-                app_token=Config.REPORT_BITABLE_APP_TOKEN,
-                table_id=Config.REPORT_BITABLE_TABLE_ID,
-                report_date=date_str,
-                title=title,
-                doc_url=result["doc_url"],
-                todo_content=todo_content,
-                status="已创建"
-            )
 
         return result
 
@@ -140,7 +122,7 @@ class ReportService:
             self.db.mark_report_sent(date_str)
 
             # 更新周报汇总表状态
-            if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
+            if report.status != "sent" and Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
                 self.lark.add_report_to_bitable(
                     app_token=Config.REPORT_BITABLE_APP_TOKEN,
                     table_id=Config.REPORT_BITABLE_TABLE_ID,

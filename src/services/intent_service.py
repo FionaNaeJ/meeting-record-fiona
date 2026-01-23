@@ -2,14 +2,14 @@
 from __future__ import annotations
 import json
 import httpx
-from typing import Optional, Tuple
+from typing import Optional
 from dataclasses import dataclass
 from src.config import Config
 
 
 @dataclass
 class Intent:
-    type: str  # todo, send_report, skip, cancel_skip, unknown
+    type: str  # todo, send_report, skip, cancel_skip, status, help, unknown
     content: Optional[str] = None
 
 
@@ -48,6 +48,8 @@ class IntentService:
 
     def recognize(self, message: str) -> Intent:
         """识别用户消息的意图"""
+        if not self.api_key or not self.model or not self.base_url:
+            return self._rule_based_recognize(message)
         try:
             print(f"[IntentService] Calling LLM with message: {message[:100]}...")
             response = self._call_llm(message)
@@ -57,7 +59,7 @@ class IntentService:
             import traceback
             print(f"[IntentService] Error: {e}")
             traceback.print_exc()
-            return Intent(type="unknown")
+            return self._rule_based_recognize(message)
 
     def _call_llm(self, message: str) -> str:
         """调用豆包 API"""
@@ -91,7 +93,7 @@ class IntentService:
             content = data.get("content")
 
             # 验证意图类型
-            valid_intents = ["todo", "send_report", "skip", "cancel_skip", "unknown"]
+            valid_intents = ["todo", "send_report", "skip", "cancel_skip", "status", "help", "unknown"]
             if intent_type not in valid_intents:
                 intent_type = "unknown"
 
@@ -110,3 +112,31 @@ class IntentService:
                 except:
                     pass
             return Intent(type="unknown")
+
+    def _rule_based_recognize(self, message: str) -> Intent:
+        import re
+        msg = message.strip()
+
+        if msg in ["跳过本周", "跳过"]:
+            return Intent(type="skip")
+        if re.match(r'^跳过\s+\d{4}-\d{2}-\d{2}$', msg):
+            return Intent(type="skip")
+
+        if msg in ["取消跳过", "恢复本周"]:
+            return Intent(type="cancel_skip")
+        if re.match(r'^取消跳过\s+\d{4}-\d{2}-\d{2}$', msg):
+            return Intent(type="cancel_skip")
+
+        if msg in ["状态", "查看状态", "status"]:
+            return Intent(type="status")
+
+        if msg in ["帮助", "help", "?"]:
+            return Intent(type="help")
+
+        if "周报" in msg:
+            return Intent(type="send_report")
+
+        if re.search(r'[Tt][Oo][Dd][Oo]|待办', msg):
+            return Intent(type="todo")
+
+        return Intent(type="unknown")

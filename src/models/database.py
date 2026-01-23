@@ -114,7 +114,18 @@ class Database:
 
     def cancel_skip(self, week_date: str):
         cursor = self.conn.cursor()
-        cursor.execute("DELETE FROM weekly_reports WHERE week_date = ? AND status = 'skipped'", (week_date,))
+        cursor.execute(
+            "SELECT doc_token, doc_url FROM weekly_reports WHERE week_date = ? AND status = 'skipped'",
+            (week_date,)
+        )
+        row = cursor.fetchone()
+        if row:
+            doc_token, doc_url = row
+            new_status = "created" if doc_token or doc_url else "pending"
+            cursor.execute(
+                "UPDATE weekly_reports SET status = ? WHERE week_date = ?",
+                (new_status, week_date)
+            )
         self.conn.commit()
 
     def is_week_skipped(self, week_date: str) -> bool:

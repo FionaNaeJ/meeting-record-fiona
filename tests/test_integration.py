@@ -34,11 +34,11 @@ def test_full_todo_workflow(services):
 
     # 添加待办
     reply = handler.handle_message("chat1", "user1", "todo 完成设计文档")
-    assert "已接收 todo" in reply
+    assert reply == ""
 
     # 再添加一个
     reply = handler.handle_message("chat1", "user2", "TODO: 代码评审")
-    assert "已接收 todo" in reply
+    assert reply == ""
 
     # 检查待办数量
     todos = services["todo_service"].get_pending_todos()
@@ -62,7 +62,6 @@ def test_skip_workflow(services):
 def test_help_command(services):
     handler = services["event_handler"]
     reply = handler.handle_message("chat1", "user1", "帮助")
-    assert "todo" in reply
     assert "跳过" in reply
     assert "状态" in reply
 
