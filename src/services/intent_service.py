@@ -23,6 +23,8 @@ class IntentService:
 - send_report: 要求发送/查看周报
 - skip: 要求跳过周报
 - cancel_skip: 取消跳过
+- status: 查询状态
+- help: 请求帮助
 - unknown: 无法识别
 
 返回JSON：
@@ -39,6 +41,8 @@ class IntentService:
 "todo 完成周报" → {"intent": "todo", "content": "完成周报"}
 "发一下周报" → {"intent": "send_report"}
 "这周跳过" → {"intent": "skip"}
+"状态" → {"intent": "status"}
+"帮助" → {"intent": "help"}
 "天气真好" → {"intent": "unknown"}"""
 
     def __init__(self):
