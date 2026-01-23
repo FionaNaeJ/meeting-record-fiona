@@ -56,7 +56,22 @@ class EventHandler:
             print("[EventHandler] Report creation failed")
 
         from src.config import Config
+        from src.services.document_service import DocumentService
+
         if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
+            # 写入飞书表格
+            if result:
+                title = DocumentService.generate_new_title(target_date)
+                self.lark.add_report_to_bitable(
+                    app_token=Config.REPORT_BITABLE_APP_TOKEN,
+                    table_id=Config.REPORT_BITABLE_TABLE_ID,
+                    report_date=target_date.strftime("%Y-%m-%d"),
+                    title=title,
+                    doc_url=result["doc_url"],
+                    todo_content=content,
+                    status="已创建"
+                )
+
             bitable_url = f"https://bytedance.larkoffice.com/base/{Config.REPORT_BITABLE_APP_TOKEN}?table={Config.REPORT_BITABLE_TABLE_ID}"
             self.lark.send_todo_confirm_card(chat_id, bitable_url)
             return ""
