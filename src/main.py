@@ -34,7 +34,7 @@ from collections import OrderedDict
 processed_messages = OrderedDict()  # message_id 去重，保持插入顺序
 processed_content_hashes = {}  # 内容哈希去重 {hash: timestamp}
 MAX_CACHE_SIZE = 1000
-CONTENT_DEDUP_SECONDS = 300  # 5 分钟内相同内容不重复处理
+CONTENT_DEDUP_SECONDS = 30  # 30 秒内相同内容不重复处理
 
 
 def extract_text_from_post(content: dict) -> str:
