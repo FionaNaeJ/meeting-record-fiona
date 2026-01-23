@@ -59,18 +59,25 @@ class EventHandler:
         from src.services.document_service import DocumentService
 
         if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
-            # 写入飞书表格
+            # 检查飞书表格是否已有该周记录，没有才创建
             if result:
-                title = DocumentService.generate_new_title(target_date)
-                self.lark.add_report_to_bitable(
-                    app_token=Config.REPORT_BITABLE_APP_TOKEN,
-                    table_id=Config.REPORT_BITABLE_TABLE_ID,
-                    report_date=target_date.strftime("%Y-%m-%d"),
-                    title=title,
-                    doc_url=result["doc_url"],
-                    todo_content=content,
-                    status="已创建"
+                date_str = target_date.strftime("%Y-%m-%d")
+                existing = self.lark.get_report_from_bitable(
+                    Config.REPORT_BITABLE_APP_TOKEN,
+                    Config.REPORT_BITABLE_TABLE_ID,
+                    date_str
                 )
+                if not existing:
+                    title = DocumentService.generate_new_title(target_date)
+                    self.lark.add_report_to_bitable(
+                        app_token=Config.REPORT_BITABLE_APP_TOKEN,
+                        table_id=Config.REPORT_BITABLE_TABLE_ID,
+                        report_date=date_str,
+                        title=title,
+                        doc_url=result["doc_url"],
+                        todo_content=content,
+                        status="已创建"
+                    )
 
             bitable_url = f"https://bytedance.larkoffice.com/base/{Config.REPORT_BITABLE_APP_TOKEN}?table={Config.REPORT_BITABLE_TABLE_ID}"
             self.lark.send_todo_confirm_card(chat_id, bitable_url)
