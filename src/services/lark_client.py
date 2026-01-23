@@ -50,6 +50,49 @@ class LarkClient:
         response = self.client.im.v1.message.create(request)
         return response.success()
 
+    def get_report_from_bitable(self, app_token: str, table_id: str, report_date: str) -> Optional[dict]:
+        """从多维表格查询指定日期的周报记录
+
+        Returns:
+            找到返回 {"doc_url": str, "status": str}，没找到返回 None
+        """
+        from datetime import datetime
+
+        # 日期转时间戳（毫秒）
+        date_obj = datetime.strptime(report_date, "%Y-%m-%d")
+        timestamp_ms = int(date_obj.timestamp() * 1000)
+
+        # 构建筛选条件：周报日期 = 指定日期
+        request = SearchAppTableRecordRequest.builder() \
+            .app_token(app_token) \
+            .table_id(table_id) \
+            .request_body(SearchAppTableRecordRequestBody.builder()
+                .filter(FilterInfo.builder()
+                    .conjunction("and")
+                    .conditions([
+                        Condition.builder()
+                            .field_name("周报日期")
+                            .operator("is")
+                            .value([str(timestamp_ms)])
+                            .build()
+                    ])
+                    .build())
+                .build()) \
+            .build()
+
+        response = self.client.bitable.v1.app_table_record.search(request)
+        if response.success() and response.data and response.data.items:
+            record = response.data.items[0]
+            fields = record.fields
+            doc_link = fields.get("文档链接", {})
+            doc_url = doc_link.get("link", "") if isinstance(doc_link, dict) else ""
+            status = fields.get("状态", "")
+            print(f"[LarkClient] Found report in bitable: {report_date} -> {doc_url}")
+            return {"doc_url": doc_url, "status": status}
+
+        print(f"[LarkClient] No report found in bitable for {report_date}")
+        return None
+
     def add_report_to_bitable(self, app_token: str, table_id: str, report_date: str, title: str, doc_url: str, todo_content: str = "", status: str = "已创建") -> bool:
         """将周报记录添加到多维表格"""
         from datetime import datetime

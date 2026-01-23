@@ -44,8 +44,15 @@ class ReportService:
         # 没有历史周报，使用模板
         return Config.TEMPLATE_DOC_TOKEN
 
+    def _extract_doc_token_from_url(self, doc_url: str) -> Optional[str]:
+        """从文档 URL 中提取 doc_token"""
+        # URL 格式: https://bytedance.larkoffice.com/docx/{doc_token}
+        if "/docx/" in doc_url:
+            return doc_url.split("/docx/")[-1].split("?")[0]
+        return None
+
     def get_or_create_weekly_report(self, target_date: date) -> Optional[dict]:
-        """获取或创建本周周报
+        """获取或创建本周周报（以飞书表格为准）
 
         Args:
             target_date: 目标日期（下周三）
@@ -60,10 +67,26 @@ class ReportService:
             print(f"[ReportService] Week {date_str} is skipped")
             return None
 
-        # 检查是否已有本周周报
+        # 优先检查飞书表格是否已有本周周报
+        if Config.REPORT_BITABLE_APP_TOKEN and Config.REPORT_BITABLE_TABLE_ID:
+            bitable_record = self.lark.get_report_from_bitable(
+                Config.REPORT_BITABLE_APP_TOKEN,
+                Config.REPORT_BITABLE_TABLE_ID,
+                date_str
+            )
+            if bitable_record and bitable_record.get("doc_url"):
+                doc_url = bitable_record["doc_url"]
+                doc_token = self._extract_doc_token_from_url(doc_url)
+                print(f"[ReportService] Found existing report in bitable for {date_str}: {doc_url}")
+                # 同步到本地数据库
+                if doc_token:
+                    self.db.mark_report_created(date_str, doc_token, doc_url)
+                return {"doc_token": doc_token, "doc_url": doc_url}
+
+        # 飞书表格没有，检查本地数据库（兼容旧数据）
         existing = self.db.get_report_by_week_date(date_str)
         if existing and existing.doc_token and existing.doc_url:
-            print(f"[ReportService] Found existing report for {date_str}: {existing.doc_url}")
+            print(f"[ReportService] Found existing report in local DB for {date_str}: {existing.doc_url}")
             return {"doc_token": existing.doc_token, "doc_url": existing.doc_url}
 
         # 创建新周报
@@ -77,7 +100,7 @@ class ReportService:
             print("[ReportService] Failed to create report")
             return None
 
-        # 保存到数据库（标记为已创建）
+        # 保存到本地数据库
         self.db.mark_report_created(date_str, result["doc_token"], result["doc_url"])
         print(f"[ReportService] Created new report: {result['doc_url']}")
 
