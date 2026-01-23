@@ -84,15 +84,11 @@ class EventHandler:
         return f"已恢复 {target_date.strftime('%Y-%m-%d')} 的周报"
 
     def _handle_status(self) -> str:
-        """处理状态查询"""
-        target_date = LarkClient.get_next_wednesday()
-        if not self.report_service.should_send_report(target_date):
-            return f"{target_date.strftime('%Y-%m-%d')} 的周报已跳过"
-
-        report = self.report_service.db.get_report_by_week_date(target_date.strftime("%Y-%m-%d"))
-        if report and report.doc_url:
-            return f"周报链接：{report.doc_url}"
-        return f"{target_date.strftime('%Y-%m-%d')} 的周报尚未创建"
+        """处理状态查询：返回最新周报是哪周的"""
+        last_report = self.report_service.db.get_last_report()
+        if last_report and last_report.week_date:
+            return f"最新周报：{last_report.week_date}"
+        return "暂无周报记录"
 
     def _handle_help(self) -> str:
         """处理帮助信息"""
