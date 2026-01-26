@@ -58,6 +58,17 @@ class DocumentService:
             perm=Config.DOC_PERMISSION_LEVEL
         )
 
+        # 授予目标群组编辑权限
+        if Config.TARGET_CHAT_ID:
+            self.lark.grant_document_permission(
+                doc_token=doc_token,
+                doc_type="docx",
+                member_id=Config.TARGET_CHAT_ID,
+                member_type="openchat",
+                perm="edit"
+            )
+            print(f"[DocumentService] Granted edit permission to chat: {Config.TARGET_CHAT_ID}")
+
         return {"doc_token": doc_token, "doc_url": doc_url}
 
     def get_document_url(self, doc_token: str) -> str:
