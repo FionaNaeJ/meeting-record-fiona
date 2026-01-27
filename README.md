@@ -59,6 +59,26 @@ pip install -r requirements.txt
 python -m src.main
 ```
 
+### 4. 服务器部署（systemd）
+
+服务器上使用 systemd 管理进程，**不要用 nohup 手动启动**，否则会导致多个进程同时运行。
+
+```bash
+# 更新代码并重启服务
+ssh root@115.190.113.142 "cd /root/weekly-report-bot && git pull && systemctl restart weekly-report-bot"
+
+# 查看服务状态
+ssh root@115.190.113.142 "systemctl status weekly-report-bot"
+
+# 查看日志
+ssh root@115.190.113.142 "tail -f /root/weekly-report-bot/app.log"
+
+# 验证只有一个进程
+ssh root@115.190.113.142 "ps aux | grep 'src.main' | grep -v grep"
+```
+
+⚠️ **注意**：不要使用 `pkill + nohup` 的方式重启，systemd 会自动重启被杀的进程，导致出现两个进程。
+
 ## 开发
 
 ```bash
